@@ -19,6 +19,19 @@ export const Config = Schema.object({
   panelTitle: Schema.string()
     .default('')
     .description('弹层标题；留空时使用当前语言'),
+  prompts: Schema.array(Schema.object({
+    id: Schema.string()
+      .default('')
+      .description('可选稳定标识；留空时按顺序生成。同一配置内应唯一'),
+    label: Schema.string()
+      .default('')
+      .description('按钮显示文字；留空时显示 prompt 内容'),
+    prompt: Schema.string()
+      .default('')
+      .description('点击后注入输入框的纯文本片段；不会自动发送'),
+  }))
+    .default([])
+    .description('固定在面板里的 prompt 片段；点击插入当前光标处'),
   commands: Schema.array(Schema.object({
     command: Schema.string()
       .required()

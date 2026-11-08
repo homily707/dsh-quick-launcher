@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A quick launcher beside the DSH composer for commands, skills and future actions.",
+  "description": "A quick launcher beside the DSH composer for commands, prompt snippets and skills.",
   "license": "MIT",
   "exports": {
     ".": "./index.js",
