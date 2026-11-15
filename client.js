@@ -513,8 +513,14 @@ window.__ModuleLoader__.load({
       ]),
     })
 
+    // The `remote.quickLauncher` namespace is provided by this plugin's own
+    // $mount, so declaring it in the static inject list would deadlock
+    // activation. apply() captures it through a scoped ctx.inject instead.
+    let quickLauncherNamespace
     function filesApi(ctx) {
-      const namespace = ctx.remote !== undefined ? ctx.remote[FILES_NAMESPACE] : undefined
+      const namespace = quickLauncherNamespace !== undefined
+        ? quickLauncherNamespace
+        : (ctx.remote !== undefined ? ctx.remote[FILES_NAMESPACE] : undefined)
       return namespace !== undefined && typeof namespace.list === 'function' ? namespace : undefined
     }
 
@@ -2026,6 +2032,11 @@ window.__ModuleLoader__.load({
 
       const unmountFiles = await ctx.remote.$mount(FILES_REMOTE)
       ctx.effect(() => () => { void unmountFiles() }, 'quick-launcher: files remote')
+      const filesScope = ctx.inject(['remote.quickLauncher'], (scope) => {
+        quickLauncherNamespace = scope.remote.quickLauncher
+        return () => { quickLauncherNamespace = undefined }
+      })
+      ctx.effect(() => () => { void filesScope.dispose?.() }, 'quick-launcher: files scope')
 
       const t = ctx.locale.bind(NS)
       ctx.slots.inject('conversation.input.overlay', () => ctx.slots.register({
@@ -2044,6 +2055,6 @@ window.__ModuleLoader__.load({
       }, (props) => h(SettingsConfigPage, { ...props, ctx })))
     }
 
-    return { inject: ['slots', 'sessions', 'remote', 'remote.commands', 'remote.skills', 'locale', 'configForms'], apply }
+    return { inject: ['slots', 'sessions', 'remote', 'remote.commands', 'remote.skills', 'remote.directoryPicker', 'locale', 'configForms'], apply }
   },
 })

@@ -29,7 +29,6 @@ export const Config = Schema.object({
     .description('弹层标题；留空时使用当前语言'),
   promptDir: Schema.string()
     .default('')
-    .volatile()
     .description('Prompt 片段目录（绝对路径，支持 ~）；留空使用 profile 数据目录下的 quick-launcher/prompts。目录内每个 .md 文件是一个 Prompt 预设'),
   commands: Schema.array(Schema.object({
     command: Schema.string()
