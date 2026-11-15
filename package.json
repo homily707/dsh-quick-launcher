@@ -1,6 +1,6 @@
 {
   "name": "dsh-quick-launcher",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "description": "A quick launcher beside the DSH composer for commands, prompt snippets and skills.",
