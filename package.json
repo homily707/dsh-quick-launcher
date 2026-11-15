@@ -1,6 +1,6 @@
 {
   "name": "dsh-quick-launcher",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "A quick launcher beside the DSH composer for commands, prompt snippets and skills.",
@@ -21,6 +21,7 @@
     "README.md"
   ],
   "dependencies": {
+    "@deepseek-ai/dsh-typert-protocol": ">=0.2.2-rc.3 <0.3.0",
     "@deepseek-ai/schemastery": "^3.18.1"
   },
   "dsh": {
