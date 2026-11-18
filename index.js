@@ -30,6 +30,16 @@ export const Config = Schema.object({
   promptDir: Schema.string()
     .default('')
     .description('Prompt 片段目录（绝对路径，支持 ~）；留空使用 profile 数据目录下的 quick-launcher/prompts。目录内每个 .md 文件是一个 Prompt 预设'),
+  prompts: Schema.array(Schema.object({
+    name: Schema.string()
+      .required()
+      .description('Prompt 文件名（目录内的 .md 文件，含扩展名）'),
+    label: Schema.string()
+      .default('')
+      .description('按钮显示文字；留空时使用去掉 .md 的文件名'),
+  }))
+    .default([])
+    .description('固定在面板里的 Prompt 片段；只有这里列出的文件会出现在面板，默认为空，即一个都不显示'),
   commands: Schema.array(Schema.object({
     command: Schema.string()
       .required()

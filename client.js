@@ -57,7 +57,7 @@ window.__ModuleLoader__.load({
       commandsSection: '命令',
       commandsHint: '按保存后的顺序显示在面板里；同一命令可以配置多条不同参数。',
       promptsSection: 'Prompt 片段',
-      promptsHint: '绑定本地目录：目录内每个 .md 文件是一个 Prompt 预设，点击把文件当前内容插入输入框；编辑保存直接写回源文件。',
+      promptsHint: '绑定本地目录：目录内每个 .md 文件是一个 Prompt 预设。只有点了「选择」的片段才会出现在面板，默认一个都不显示；点击把文件当前内容插入输入框，编辑保存直接写回源文件。',
       promptDirLabel: 'Prompt 目录',
       promptDirCurrent: '当前目录：{path}',
       promptDirPlaceholder: '留空使用 profile 数据目录下的 quick-launcher/prompts',
@@ -167,7 +167,7 @@ window.__ModuleLoader__.load({
       commandsSection: 'Commands',
       commandsHint: 'Shown in saved order. The same command may appear multiple times with different arguments.',
       promptsSection: 'Prompt snippets',
-      promptsHint: 'Bound to a local directory: every .md file is one preset; clicking inserts the file\u2019s current text, and edits save straight back to the file.',
+      promptsHint: 'Bound to a local directory: every .md file is one preset. Only snippets you select appear in the panel (none by default); clicking inserts the file\u2019s current text, and edits save straight back to the file.',
       promptDirLabel: 'Prompt directory',
       promptDirCurrent: 'Current directory: {path}',
       promptDirPlaceholder: 'Empty uses quick-launcher/prompts under the profile data directory',
@@ -537,6 +537,10 @@ window.__ModuleLoader__.load({
       return { name: asText(item?.name), label: asText(item?.label) }
     }
 
+    function toPromptDraft(item) {
+      return { name: asText(item?.name), label: asText(item?.label) }
+    }
+
     function moveItem(list, index, delta) {
       const target = index + delta
       if (target < 0 || target >= list.length) return list
@@ -560,6 +564,7 @@ window.__ModuleLoader__.load({
       const t = useLocale(ctx)
       const { form, snapshot } = useConfigForm(ctx)
       const [commands, setCommands] = React.useState([])
+      const [prompts, setPrompts] = React.useState([])
       const [skills, setSkills] = React.useState([])
       const [promptDir, setPromptDir] = React.useState('')
       const [fileState, setFileState] = React.useState({ status: 'idle', root: '', files: [], error: '' })
@@ -587,6 +592,7 @@ window.__ModuleLoader__.load({
       React.useEffect(() => {
         if (loaded || value === undefined) return
         setCommands(Array.isArray(value.commands) ? value.commands.map(toCommandDraft) : [])
+        setPrompts(Array.isArray(value.prompts) ? value.prompts.map(toPromptDraft) : [])
         setSkills(Array.isArray(value.skills) ? value.skills.map(toSkillDraft) : [])
         setPromptDir(asText(value.promptDir))
         setLoaded(true)
@@ -751,6 +757,10 @@ window.__ModuleLoader__.load({
           const result = await api.removeFile(name)
           if (result.ok) {
             closeFileDraft(name)
+            if (prompts.some((item) => item.name === name)) {
+              setPrompts((previous) => previous.filter((item) => item.name !== name))
+              touch()
+            }
             setStatus({ kind: 'ok', text: t('fileDeleted', { name }) })
             await loadFiles()
           } else {
@@ -812,6 +822,7 @@ window.__ModuleLoader__.load({
       const skillNames = new Set(catalogReady ? skillState.skills.map((item) => item.name) : [])
       const commandNames = catalogReady ? skillState.commands : new Set()
       const selectedNames = new Set(skills.map((item) => normalizeName(item.name)))
+      const selectedPromptNames = new Set(prompts.map((item) => item.name))
       const query = skillQuery.trim().toLowerCase()
       const filteredSkills = skillState.skills.filter((item) => {
         if (query === '') return true
@@ -842,7 +853,15 @@ window.__ModuleLoader__.load({
         const commandSet = new Set(nextCommands.map((item) => item.command))
         const conflict = nextSkills.find((item) => commandSet.has(item.name))
         if (conflict !== undefined) return { error: t('skillConflictSave', { name: conflict.name }) }
-        return { commands: nextCommands, skills: nextSkills, promptDir: promptDir.trim() }
+        const seenPrompts = new Set()
+        const nextPrompts = []
+        for (let index = 0; index < prompts.length; index += 1) {
+          const name = asText(prompts[index].name).trim()
+          if (name === '' || seenPrompts.has(name)) continue
+          seenPrompts.add(name)
+          nextPrompts.push({ name, label: asText(prompts[index].label).trim() })
+        }
+        return { commands: nextCommands, prompts: nextPrompts, skills: nextSkills, promptDir: promptDir.trim() }
       }
 
       const save = async () => {
@@ -857,6 +876,7 @@ window.__ModuleLoader__.load({
         try {
           const ok = await form.mutate([
             { op: 'set', path: ['commands'], value: next.commands },
+            { op: 'set', path: ['prompts'], value: next.prompts },
             { op: 'set', path: ['skills'], value: next.skills },
             { op: 'set', path: ['promptDir'], value: next.promptDir },
           ])
@@ -865,6 +885,7 @@ window.__ModuleLoader__.load({
             return
           }
           setCommands(next.commands)
+          setPrompts(next.prompts)
           setSkills(next.skills)
           setPromptDir(next.promptDir)
           setDirty(false)
@@ -888,6 +909,16 @@ window.__ModuleLoader__.load({
         touch()
       }
 
+      const togglePrompt = (name) => {
+        setPrompts((previous) => {
+          const exists = previous.some((item) => item.name === name)
+          return exists
+            ? previous.filter((item) => item.name !== name)
+            : [...previous, { name, label: '' }]
+        })
+        touch()
+      }
+
       const applyJson = () => {
         try {
           const parsed = JSON.parse(jsonText)
@@ -896,6 +927,7 @@ window.__ModuleLoader__.load({
             return
           }
           setCommands(parsed.commands.map(toCommandDraft))
+          setPrompts(Array.isArray(parsed?.prompts) ? parsed.prompts.map(toPromptDraft) : [])
           setSkills(parsed.skills.map(toSkillDraft))
           setPromptDir(parsed.promptDir)
           setJsonError('')
@@ -1010,6 +1042,13 @@ window.__ModuleLoader__.load({
                             onClick: () => { setConfirmFile('') },
                           }, t('cancel'))
                         : null,
+                      h('button', {
+                        key: 'select', type: 'button',
+                        className: `dsh-cl-btn dsh-cl-btn--mini${selectedPromptNames.has(name) ? ' dsh-cl-btn--primary' : ''}`,
+                        'aria-pressed': selectedPromptNames.has(name),
+                        disabled,
+                        onClick: () => { togglePrompt(name) },
+                      }, selectedPromptNames.has(name) ? t('skillSelected') : t('skillSelect')),
                       h('button', {
                         key: 'edit', type: 'button', className: 'dsh-cl-btn dsh-cl-btn--mini',
                         disabled: fileBusy !== '' || editing,
@@ -1232,7 +1271,7 @@ window.__ModuleLoader__.load({
           className: 'dsh-cl-advanced',
           onToggle: (event) => {
             if (!event.currentTarget.open) return
-            setJsonText(JSON.stringify({ commands, skills, promptDir }, null, 2))
+            setJsonText(JSON.stringify({ commands, prompts, skills, promptDir }, null, 2))
             setJsonError('')
           },
         }, [
@@ -1390,8 +1429,9 @@ window.__ModuleLoader__.load({
     }
 
     function PromptFileRow(props) {
-      const { name, busy, onClick } = props
-      const label = name.replace(/\.md$/i, '')
+      const { item, busy, onClick } = props
+      const name = asText(item?.name)
+      const label = asText(item?.label).trim() !== '' ? item.label : name.replace(/\.md$/i, '')
       return h('button', {
         type: 'button',
         className: 'dsh-cl-row',
@@ -1502,7 +1542,11 @@ window.__ModuleLoader__.load({
           .filter((item) => item !== null && typeof item === 'object' && normalizeName(item.command) !== ''),
         [config.commands],
       )
-      const [promptFiles, setPromptFiles] = React.useState({ status: 'idle', files: [], error: '' })
+      const prompts = React.useMemo(
+        () => (Array.isArray(config.prompts) ? config.prompts : [])
+          .filter((item) => item !== null && typeof item === 'object' && typeof item.name === 'string' && item.name.trim() !== ''),
+        [config.prompts],
+      )
       const skills = React.useMemo(
         () => (Array.isArray(config.skills) ? config.skills : [])
           .filter((item) => item !== null && typeof item === 'object' && normalizeName(item.name) !== ''),
@@ -1653,35 +1697,6 @@ window.__ModuleLoader__.load({
           controller.abort()
         }
       }, [open, sessionId, ctx])
-
-      React.useEffect(() => {
-        if (!open) return undefined
-        const api = filesApi(ctx)
-        if (api === undefined) {
-          setPromptFiles({ status: 'error', files: [], error: t('promptFilesUnavailable') })
-          return undefined
-        }
-        let cancelled = false
-        setPromptFiles({ status: 'loading', files: [], error: '' })
-        api.list().then((result) => {
-          if (cancelled) return
-          if (result.ok) {
-            setPromptFiles({
-              status: 'ready',
-              files: (Array.isArray(result.value?.files) ? result.value.files : [])
-                .map((item) => (typeof item?.name === 'string' ? item.name : ''))
-                .filter((name) => name !== ''),
-              error: '',
-            })
-          } else {
-            setPromptFiles({ status: 'error', files: [], error: result.error.message })
-          }
-        }, (error) => {
-          if (cancelled) return
-          setPromptFiles({ status: 'error', files: [], error: error instanceof Error ? error.message : String(error) })
-        })
-        return () => { cancelled = true }
-      }, [open, ctx, t])
 
       const ensureCatalog = React.useCallback(async () => {
         if (catalogRef.current !== null) return catalogRef.current
@@ -1952,18 +1967,15 @@ window.__ModuleLoader__.load({
                   }),
                 ])
               : null,
-            promptFiles.status === 'ready' && promptFiles.files.length > 0
+            prompts.length > 0
               ? h('section', { key: 'prompts', 'aria-label': t('prompts') }, [
-                  ...promptFiles.files.map((name, index) => h(PromptFileRow, {
-                    key: `${name}:${index}`,
-                    name,
+                  ...prompts.map((item, index) => h(PromptFileRow, {
+                    key: `${item.name}:${index}`,
+                    item,
                     busy,
-                    onClick: () => { void insertPromptFile(name) },
+                    onClick: () => { void insertPromptFile(item.name) },
                   })),
                 ])
-              : null,
-            promptFiles.status === 'error'
-              ? h('div', { key: 'promptError', className: 'dsh-cl-status dsh-cl-status--error' }, t('promptLoadFailed', { message: promptFiles.error }))
               : null,
             skills.length > 0
               ? h('section', { key: 'skills' }, [
@@ -1980,7 +1992,7 @@ window.__ModuleLoader__.load({
                   }),
                 ])
               : null,
-            commands.length === 0 && promptFiles.files.length === 0 && skills.length === 0 && !loading
+            commands.length === 0 && prompts.length === 0 && skills.length === 0 && !loading
               ? h('div', { key: 'empty', className: 'dsh-cl-empty' }, t('empty'))
               : null,
             h('div', {
