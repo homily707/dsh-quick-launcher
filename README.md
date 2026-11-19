@@ -1,6 +1,6 @@
 # Quick Launcher
 
-Package: `dsh-quick-launcher`.
+Package: `@homily/dsh-quick-launcher`.
 
 A quick launcher for commands, prompt snippets and skills, pinned to the left gutter of the DSH composer card.
 
@@ -30,7 +30,7 @@ You can still override the bundle entry in the profile patch:
 
 ```yaml
 - id: dsh-quick-launcher
-  name: dsh-quick-launcher
+  name: '@homily/dsh-quick-launcher'
   config:
     promptDir: ~/Dropbox/prompts
     commands:

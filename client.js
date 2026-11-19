@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: 'dsh-quick-launcher',
+  id: '@homily/dsh-quick-launcher',
   factory(require) {
     const React = require('react')
     const ReactDOM = require('react-dom')
@@ -475,7 +475,7 @@ window.__ModuleLoader__.load({
     // mirrors the source-mode descriptors of the Host service in index.js:
     // runtime call paths only need strict-parameter factories that parse, and
     // src-json results, so no generated artifact or bundled Zod is required.
-    const FILES_PACKAGE = 'dsh-quick-launcher'
+    const FILES_PACKAGE = '@homily/dsh-quick-launcher'
     const FILES_SERVICE = 'quickLauncherFiles'
     const FILES_NAMESPACE = 'quickLauncher'
     const STRING_SCHEMA = Object.freeze({

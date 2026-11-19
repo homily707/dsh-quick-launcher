@@ -1,10 +1,18 @@
 {
-  "name": "dsh-quick-launcher",
+  "name": "@homily/dsh-quick-launcher",
   "version": "0.3.0",
-  "private": true,
+  "private": false,
   "type": "module",
   "description": "A quick launcher beside the DSH composer for commands, prompt snippets and skills.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/homily707/dsh-quick-launcher.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
