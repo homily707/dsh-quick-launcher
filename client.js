@@ -24,6 +24,8 @@ window.__ModuleLoader__.load({
       promptFilesUnavailable: 'Prompt 文件服务不可用（需重启应用加载新版插件）',
       promptLoadFailed: 'Prompt 目录读取失败：{message}',
       promptReadFailed: '读取 Prompt 文件失败：{message}',
+      promptMissing: '文件已不存在，已从当前面板隐藏：{name}',
+      promptUnavailable: '文件不存在（已选配置仍保留）',
       catalogError: '无法加载命令/技能目录：{message}',
       catalogUnavailable: '当前会话的命令目录不可用',
       unknownCommand: '未找到命令 /{command}',
@@ -134,6 +136,8 @@ window.__ModuleLoader__.load({
       promptFilesUnavailable: 'The prompt file service is unavailable (restart the app to load the new plugin)',
       promptLoadFailed: 'Could not read the prompt directory: {message}',
       promptReadFailed: 'Could not read the prompt file: {message}',
+      promptMissing: 'File no longer exists; hidden from this panel: {name}',
+      promptUnavailable: 'File missing (still selected in configuration)',
       catalogError: 'Could not load the command/skill catalog: {message}',
       catalogUnavailable: 'The command catalog is unavailable for this session',
       unknownCommand: 'Unknown command /{command}',
@@ -522,6 +526,12 @@ window.__ModuleLoader__.load({
         ? quickLauncherNamespace
         : (ctx.remote !== undefined ? ctx.remote[FILES_NAMESPACE] : undefined)
       return namespace !== undefined && typeof namespace.list === 'function' ? namespace : undefined
+    }
+
+    function isMissingPromptFile(error) {
+      return error?.code === 'quickLauncher/file-not-found'
+        || error?.details?.code === 'ENOENT'
+        || error?.data?.code === 'ENOENT'
     }
 
     function toCommandDraft(item) {
@@ -993,6 +1003,24 @@ window.__ModuleLoader__.load({
             ]),
           ])))
 
+      const missingPromptNames = fileState.status === 'ready'
+        ? prompts.filter((item) => !fileState.files.includes(item.name))
+        : []
+      const missingPromptRows = missingPromptNames.length > 0
+        ? h('div', { key: 'missing', className: 'dsh-cl-editor' }, missingPromptNames.map((item) => h('div', {
+            key: item.name, className: 'dsh-cl-editor-row',
+          }, [
+            h('div', { key: 'head', className: 'dsh-cl-row-head' }, [
+              h('span', { key: 'name', className: 'dsh-cl-row-index' }, item.name),
+              h('button', {
+                key: 'remove', type: 'button', className: 'dsh-cl-btn dsh-cl-btn--mini',
+                disabled, onClick: () => { togglePrompt(item.name) },
+              }, t('remove')),
+            ]),
+            h('span', { key: 'unavailable', className: 'dsh-cl-section-hint' }, t('promptUnavailable')),
+          ])))
+        : null
+
       const promptDirRow = h('div', { key: 'dir', className: 'dsh-cl-fields dsh-cl-fields--command' }, [
         renderField('promptDir', t('promptDirLabel'), h('input', {
           className: 'dsh-cl-input', value: promptDir, disabled,
@@ -1243,6 +1271,7 @@ window.__ModuleLoader__.load({
           fileState.status === 'ready' && fileState.root !== ''
             ? h('p', { key: 'root', className: 'dsh-cl-skill-meta' }, t('promptDirCurrent', { path: fileState.root }))
             : null,
+          missingPromptRows,
           promptFileRows,
           newFileRow,
         ]),
@@ -1456,6 +1485,7 @@ window.__ModuleLoader__.load({
       const [catalogError, setCatalogError] = React.useState('')
       const [loading, setLoading] = React.useState(false)
       const [status, setStatus] = React.useState(null)
+      const [availablePromptNames, setAvailablePromptNames] = React.useState(null)
       const [editingKey, setEditingKey] = React.useState(null)
       const [editingHint, setEditingHint] = React.useState('')
       const [draftArg, setDraftArg] = React.useState('')
@@ -1552,6 +1582,31 @@ window.__ModuleLoader__.load({
           .filter((item) => item !== null && typeof item === 'object' && normalizeName(item.name) !== ''),
         [config.skills],
       )
+
+      // Refresh on each opening. Missing files are hidden without changing
+      // saved selections, so a restored file automatically reappears.
+      React.useEffect(() => {
+        setAvailablePromptNames(null)
+        if (!open || prompts.length === 0) return undefined
+        const api = filesApi(ctx)
+        if (api === undefined) return undefined
+        let cancelled = false
+        void (async () => {
+          try {
+            const result = await api.list()
+            if (cancelled || !result.ok) return
+            const files = Array.isArray(result.value?.files) ? result.value.files : []
+            setAvailablePromptNames(new Set(files.map((item) => item?.name).filter((name) => typeof name === 'string')))
+          } catch (_error) {
+            // Directory errors should not hide all configured prompts.
+          }
+        })()
+        return () => { cancelled = true }
+      }, [ctx, open, config.promptDir, prompts])
+
+      const visiblePrompts = availablePromptNames === null
+        ? prompts
+        : prompts.filter((item) => availablePromptNames.has(item.name))
 
       const updateAnchor = React.useCallback(() => {
         const element = buttonRef.current
@@ -1852,6 +1907,15 @@ window.__ModuleLoader__.load({
         try {
           const result = await api.readFile(name)
           if (!result.ok) {
+            if (isMissingPromptFile(result.error)) {
+              setAvailablePromptNames((previous) => {
+                const next = new Set(previous ?? prompts.map((item) => item.name))
+                next.delete(name)
+                return next
+              })
+              setStatus({ kind: 'info', text: t('promptMissing', { name }) })
+              return
+            }
             setStatus({ kind: 'error', text: t('promptReadFailed', { message: result.error.message }) })
             return
           }
@@ -1886,7 +1950,7 @@ window.__ModuleLoader__.load({
           return
         }
         setStatus({ kind: 'ok', text: t('promptInserted', { label: name.replace(/\.md$/i, '') }) })
-      }, [ctx, draft, inputPhase, props.inputActions, t])
+      }, [ctx, draft, inputPhase, prompts, props.inputActions, t])
 
       const entryLabel = typeof config.entryLabel === 'string' && config.entryLabel.trim() !== ''
         ? config.entryLabel
@@ -1967,9 +2031,9 @@ window.__ModuleLoader__.load({
                   }),
                 ])
               : null,
-            prompts.length > 0
+            visiblePrompts.length > 0
               ? h('section', { key: 'prompts', 'aria-label': t('prompts') }, [
-                  ...prompts.map((item, index) => h(PromptFileRow, {
+                  ...visiblePrompts.map((item, index) => h(PromptFileRow, {
                     key: `${item.name}:${index}`,
                     item,
                     busy,
@@ -1992,7 +2056,7 @@ window.__ModuleLoader__.load({
                   }),
                 ])
               : null,
-            commands.length === 0 && prompts.length === 0 && skills.length === 0 && !loading
+            commands.length === 0 && visiblePrompts.length === 0 && skills.length === 0 && !loading
               ? h('div', { key: 'empty', className: 'dsh-cl-empty' }, t('empty'))
               : null,
             h('div', {

@@ -113,6 +113,9 @@ function resolvePromptDir(configured, profileDir) {
 /** Fold a filesystem error into a Remote failure that carries its reason. */
 function fileError(error) {
   if (error instanceof RemoteError) return error
+  if (error?.code === 'ENOENT') {
+    return new RemoteError('quickLauncher/file-not-found', 'prompt file not found', { code: 'ENOENT' })
+  }
   return new RemoteError(
     'quickLauncher/file-error',
     error instanceof Error ? error.message : String(error),
