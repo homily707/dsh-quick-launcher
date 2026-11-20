@@ -1,6 +1,6 @@
 {
   "name": "@homily/dsh-quick-launcher",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": false,
   "type": "module",
   "description": "A quick launcher beside the DSH composer for commands, prompt snippets and skills.",
